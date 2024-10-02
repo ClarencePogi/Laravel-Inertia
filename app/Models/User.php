@@ -2,14 +2,22 @@
 
 namespace App\Models;
 
+use App\Models\Task;
+
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable;
+    use HasRoles;
+
+    public function task() {
+        return $this->hasMany(Task::class);
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -20,6 +28,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'status'
     ];
 
     /**
@@ -28,7 +37,6 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $hidden = [
-        'password',
         'remember_token',
     ];
 

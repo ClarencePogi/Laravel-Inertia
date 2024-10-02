@@ -118,6 +118,12 @@ return [
     |
     */
 
+    'middleware' => [
+        'role' => \Spatie\Permission\Http\Middleware\Role::class,
+        'permission' => \Spatie\Permission\Http\Middleware\Permission::class,
+        // Other middleware can be registered here as well
+    ],
+
     'maintenance' => [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),

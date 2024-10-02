@@ -42,10 +42,14 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        event(new Registered($user));
-
-        Auth::login($user);
-
-        return redirect(route('dashboard', absolute: false));
+        if(Auth::check() && Auth::user()->hasRole('Super Administrator')) {
+            $user->syncRoles($request->role);
+            return redirect()->back()->with('success', 'Successfully add!');
+        } else {
+            event(new Registered($user));
+            Auth::login($user);
+            return redirect(route('dashboard', absolute: false));
+            $user->assignRole('User');
+        }
     }
 }

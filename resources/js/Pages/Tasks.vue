@@ -9,7 +9,7 @@ import ConfirmPopup from 'primevue/confirmpopup';
 import DangerButton from '@/Components/DangerButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import { useConfirm } from "primevue/useconfirm";
@@ -20,11 +20,19 @@ import { FilterMatchMode } from '@primevue/core/api';
 import IconField from 'primevue/iconfield';
 import InputIcon from 'primevue/inputicon';
 import Select from 'primevue/select';
+import Checkbox from '@/Components/Checkbox.vue';
+import Skeleton from 'primevue/skeleton';
+
 const confirm = useConfirm();
 const toast = useToast();
-const errors = ref({});
+
+let errors = ref({});
+
 let isEdit = ref(false);
-const visible = ref(false);
+let isAssignTask = ref(false);
+let isFlipped = ref(false);
+let visible = ref(false);
+const loading = ref(true);
 
 
 const form = useForm({
@@ -35,8 +43,34 @@ const form = useForm({
     status: ''
 });
 
-defineProps({
-    tasks: Array
+const assignTask = useForm({
+    selectedEmployee: '',
+    isChecked: []
+})
+
+const props = defineProps({
+    tasks: Array,
+    permissions: Array,
+    employees: Array
+});
+
+function getCheck(ev) {
+    const task = ev.target.value;
+
+    if(assignTask.isChecked.includes(task)) {
+        assignTask.isChecked = assignTask.isChecked.filter(val => val != task);
+        console.log(assignTask.isChecked);
+
+    } else {
+        ev.target.checked ? assignTask.isChecked.push(ev.target.value) : null;
+        console.log(assignTask);
+    }
+}
+
+watch(visible, (newValue, oldValue) => {
+    if (!newValue) {
+        errors.value = '';
+    }
 });
 
 const filters = ref({
@@ -102,10 +136,8 @@ function edit(obj) {
     visible.value = true;
     isEdit.value = true;
 
-    console.log(obj);
-
     Object.entries(obj).forEach(task => {
-        form[task[0]] = task[0] == 'status' ? (task[1] == 0 ? 'Incomplete' : 'Complete')  : task[1];
+        form[task[0]] = task[0] == 'status' ? (task[1] == 0 ? 'Incomplete' : 'Complete') : task[1];
     });
 
     console.log(form);
@@ -129,10 +161,23 @@ function update() {
 
         }
 
-    });
-
-
+    })
 }
+
+function can(permission) {
+    return props.permissions.includes(permission);
+}
+
+function loadContent() {
+    setTimeout(() => {
+        loading.value = false;
+    }, 1000);
+}
+
+onMounted(() => {
+    loadContent();
+});
+
 </script>
 
 <template>
@@ -140,16 +185,35 @@ function update() {
     <Head title="Task management" />
     <Toast />
 
-    <AuthenticatedLayout>
-        <div class="grid w-full grid-cols-1 h-[500px]">
+    <AuthenticatedLayout :permissions="props.permissions">
+        <div class="grid bg-slate-50 w-full grid-cols-1 h-[500px]">
             <div class="grid grid-rows-6 p-5">
-                <div class="row-span-1">
-                    <Button label="Add task" @click="visible = true; form.reset(); isEdit = false" />
-                    <p>{{ form.status }} Status to</p>
+                <div class="row-span-1 grid justify-items-end items-end">
+                    <div class="flex gap-2 mb-2">
+                        <Select v-model="assignTask.selectedEmployee" v-if="isAssignTask" :options="props.employees"
+                            optionLabel="name" optionValue="id" placeholder="Select a employee" checkmark :highlightOnSelect="false"
+                            class="w-full md:w-56 !absolute left-2" />
+                        <PrimaryButton v-if="assignTask.isChecked.length > 0" class="!absolute left-[17%] mt-1"
+                            @click="assignTask.post(route('assign.task'))">Assign
+                        </PrimaryButton>
+
+                        <PrimaryButton v-show="!loading" v-if="can('create task')"
+                            @click="visible = true; form.reset(); isEdit = false">Add task</PrimaryButton>
+                        <PrimaryButton v-if="!loading" v-show="!isAssignTask"
+                            @click="isAssignTask = true">Assign task</PrimaryButton>
+                        <DangerButton v-if="isAssignTask" @click="isAssignTask = false">Cancel</DangerButton>
+                        <Skeleton v-if="loading" width="8rem" height="3rem"></Skeleton>
+                        <Skeleton v-if="loading" width="8rem" height="3rem"></Skeleton>
+
+
+                    </div>
                 </div>
-                <DataTable v-model:filters="filters" dataKey="id" filterDisplay="row" :value="tasks" paginator :rows="6"
+                <Skeleton v-if="loading" width="100%" height="100%" class="row-span-5"></Skeleton>
+                <DataTable v-if="!loading" v-model:filters="filters" dataKey="id" filterDisplay="row"
+                    :value="props.tasks" paginator :rows="6"
                     :globalFilterFields="['title', 'description', 'due_date', 'status']" tableStyle="min-width: 50rem"
-                    class="row-span-5 w-full">
+                    class="row-span-5 w-full" :class="{ 'animate-flip': isFlipped }">
+
                     <template #header>
                         <div class="flex justify-end">
                             <IconField>
@@ -159,6 +223,12 @@ function update() {
                         </div>
                     </template>
                     <template #empty> No customers found. </template>
+                    <Column header="Action" v-if="isAssignTask">
+                        <template #body="slotProps">
+                            <Checkbox :value="slotProps.data.title"
+                                @change="getCheck" :checked="false"></Checkbox>
+                        </template>
+                    </Column>
                     <Column field="title" header="Title">
                         <template #filter="{ filterModel, filterCallback }">
                             <InputText v-model="filterModel.value" type="text" @input="filterCallback()"
@@ -179,15 +249,19 @@ function update() {
                     </Column>
                     <Column header="Status">
                         <template #body="slotProps">
-                            <p :class="{ 'text-red-500': slotProps.data.status === 0, 'text-blue-500': slotProps.data.status === 1 }">{{ slotProps.data.status === 0 ?
-                                'Incomplete' : 'Complete'}}</p>
+                            <p
+                                :class="{ 'text-red-500': slotProps.data.status === 0, 'text-blue-500': slotProps.data.status === 1 }">
+                                {{ slotProps.data.status === 0 ?
+                                    'Incomplete' : 'Complete' }}</p>
                         </template>
                     </Column>
                     <Column header="Action">
                         <template #body="slotProps">
                             <div class="flex gap-2">
-                                <PrimaryButton type="button" @click="edit(slotProps.data)">Edit</PrimaryButton>
-                                <DangerButton @click="confirmDelete($event, slotProps.data.id)" type="button">Delete
+                                <PrimaryButton type="button" v-if="can('update task')" @click="edit(slotProps.data)">
+                                    Edit</PrimaryButton>
+                                <DangerButton @click="confirmDelete($event, slotProps.data.id)"
+                                    v-if="can('delete task')" type="button">Delete
                                 </DangerButton>
                                 <ConfirmPopup></ConfirmPopup>
                             </div>
@@ -198,8 +272,7 @@ function update() {
         </div>
     </AuthenticatedLayout>
 
-    <Dialog v-model:visible="visible" modal :header="isEdit ? 'Edit Task' : 'Create Task'"
-        :style="{ width: '40rem' }">
+    <Dialog v-model:visible="visible" modal :header="isEdit ? 'Edit Task' : 'Create Task'" :style="{ width: '40rem' }">
         <span v-if="!isEdit" class="text-surface-500 dark:text-surface-400 block mb-8">Enter task information.</span>
         <span v-if="isEdit" class="text-surface-500 dark:text-surface-400 block mb-8">Update task information.</span>
 
@@ -235,7 +308,8 @@ function update() {
             </div>
 
             <div class="card flex justify-center flex-col relative">
-                <Select v-model="form.status" :options="statusList" optionLabel="name" optionValue="name" placeholder="Select Status" class="w-full" />
+                <Select v-model="form.status" :options="statusList" optionLabel="name" optionValue="name"
+                    placeholder="Select Status" class="w-full" />
 
                 <span v-if="errors?.status" class="absolute bottom-[-20px] text-sm text-red-600" severity="error">{{
                     errors?.status }}</span>
@@ -250,3 +324,13 @@ function update() {
         </form>
     </Dialog>
 </template>
+
+<style scoped>
+.animate-flip {
+    animation: flip 0.6s ease-out forwards;
+}
+
+.animate-flip-back {
+    animation: flip-back 0.6s ease-out forwards;
+}
+</style>

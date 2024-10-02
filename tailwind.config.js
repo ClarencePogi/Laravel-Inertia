@@ -15,6 +15,16 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
+            keyframes: {
+                flip: {
+                  '0%': { transform: 'rotateY(0deg)' },
+                  '100%': { transform: 'rotateY(180deg)' },
+                },
+              },
+              animation: {
+                flip: 'flip 0.6s ease-out forwards',
+                'flip-back': 'flip-back 0.6s ease-out forwards',
+              },
         },
     },
 

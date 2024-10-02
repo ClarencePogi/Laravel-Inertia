@@ -1,14 +1,25 @@
 <?php
 
 namespace App\Http\Controllers;
+use App\Http\Controllers\EmployeeController;
+
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 use App\Models\Task;
+use App\Models\User;
 
-class TaskController extends Controller
+
+class TaskController extends EmployeeController
 {
     public function index() {
-        return Inertia::render('Tasks', ['tasks' => Task::all()]);
+        $permissions = auth()->user() ? auth()->user()->getAllPermissions()->pluck('name') : [];
+
+        // dd($this->getEmployee());
+
+        return Inertia::render('Tasks', [
+            'tasks' => Task::all(), 'permissions' => $permissions,
+            'employees' => $this->getEmployee()
+        ]);
     }
 
     public function store(Request $request) {
@@ -50,5 +61,12 @@ class TaskController extends Controller
         $validated['status'] = $status;
 
         return $validated;
+    }
+
+    public function assignedTask(Request $request) {
+        dd($request->toArray());
+        $user = User::findOrFail($request->id);
+
+        // $user->task()->
     }
 }
